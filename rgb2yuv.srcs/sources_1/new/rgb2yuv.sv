@@ -24,12 +24,12 @@ module rtl_rgb2yuv #(
     parameter MULT_WIDTH   = 8, // Defines multiplication precision
     parameter REC_STANDARD = 0  // 0: Rec.601, 1: Rec.709
 )(
-    input                                  clk, areset,
+    input                                  clk, areset_n,
     input  logic unsigned  [BIT_DEPTH-1:0] R, G, B, // RGB input
     output logic unsigned  [BIT_DEPTH-1:0] Y, U, V  // YUV output
 );
     localparam Y_WIDTH = BIT_DEPTH + 2; // Need 2 bits: 1 for range > 255 (avoid overflow), 1 for negative numbers (sign bit)
-    always_comb assert (MULT_WIDTH == 8) else $error();
+    always_comb assert (MULT_WIDTH == 8) else $error(); // Only 8-bit multiplier supported for now
 
     // Constants
     localparam real Kr_601 = 0.299; // R 
@@ -73,11 +73,10 @@ module rtl_rgb2yuv #(
 
     logic unsigned [Y_WIDTH+MULT_WIDTH-1:0]   sum_rgb;
     logic signed   [Y_WIDTH+MULT_WIDTH-1:0]   u0, v0, u1, v1;
-    logic unsigned [Y_WIDTH-1:0]              y0, y1;
+    logic unsigned [Y_WIDTH-1:0]              y0, y1, y2;
 
     logic signed   [Y_WIDTH+2*MULT_WIDTH-1:0] cb1, cr1;
     logic signed   [Y_WIDTH-1:0]              cb2, cr2;
-    logic unsigned [Y_WIDTH-1:0]              y2;
 
     // Coefficient selection based on standard
     wire [BIT_DEPTH+MULT_WIDTH-1:0] coeff_y_r = REC_STANDARD ? COEFF_709_Y[0] : COEFF_601_Y[0];
@@ -85,8 +84,8 @@ module rtl_rgb2yuv #(
     wire [BIT_DEPTH+MULT_WIDTH-1:0] coeff_y_b = REC_STANDARD ? COEFF_709_Y[2] : COEFF_601_Y[2];
 
     // Pipeline stage 1: Multiply and Input Capture 
-    always_ff @(posedge clk or negedge areset) begin 
-        if (!areset) begin
+    always_ff @(posedge clk or negedge areset_n) begin 
+        if (!areset_n) begin
             {y_mult_r, y_mult_g, y_mult_b} <= '0;
             {red_r, blue_r}                <= '0;
         end else begin
@@ -99,8 +98,8 @@ module rtl_rgb2yuv #(
     end
 
     // Pipeline stage 2: Latch Multiplication Results
-    always_ff @(posedge clk or negedge areset) begin
-        if (!areset) begin
+    always_ff @(posedge clk or negedge areset_n) begin
+        if (!areset_n) begin
             {y_mult, u_mult, v_mult} <= '0;
         end else begin
             {y_mult, u_mult, v_mult} <= {y_mult_r, y_mult_g, y_mult_b};
@@ -108,8 +107,8 @@ module rtl_rgb2yuv #(
     end
 
     // Pipeline stage 3: Sum and Intermediate Calculation
-    always_ff @(posedge clk or negedge areset) begin
-        if (!areset) begin
+    always_ff @(posedge clk or negedge areset_n) begin
+        if (!areset_n) begin
             sum_rgb         <= '0;
             {y0, u0, v0}    <= '0;
         end else begin
@@ -121,8 +120,8 @@ module rtl_rgb2yuv #(
     end
 
     // Pipeline stage 4: Latch Intermediate Values
-    always_ff @(posedge clk or negedge areset) begin
-        if (!areset) begin
+    always_ff @(posedge clk or negedge areset_n) begin
+        if (!areset_n) begin
             {y1, u1, v1} <= '0;
         end else begin
             {y1, u1, v1} <= {y0, u0, v0};
@@ -130,8 +129,8 @@ module rtl_rgb2yuv #(
     end
 
     // Pipeline stage 5: Final Chroma Scaling Calculation
-    always_ff @(posedge clk or negedge areset) begin
-        if (!areset) begin
+    always_ff @(posedge clk or negedge areset_n) begin
+        if (!areset_n) begin
             {cb1, cr1, y2} <= '0;
         end else begin
             cb1            <= (128 << (2*MULT_WIDTH)) + (KCb * u1);
@@ -144,13 +143,13 @@ module rtl_rgb2yuv #(
     end
 
     // Pipeline stage 6: Output register
-    always_ff @(posedge clk or negedge areset) begin
-        if (!areset) begin
-            {Y, U, V} <= '0;
+    always_ff @(posedge clk or negedge areset_n) begin
+        if (!areset_n) begin
+            {Y, U, V}      <= '0;
         end else begin
-            Y <= y2 > 255 ? 255 : y2;                 // Y
-            U <= cb2 < 0 ? 0 : cb2 > 255 ? 255 : cb2; // U
-            V <= cr2 < 0 ? 0 : cr2 > 255 ? 255 : cr2; // V
+            Y              <= y2 > 255 ? 255 : y2;                 // Y
+            U              <= cb2 < 0 ? 0 : cb2 > 255 ? 255 : cb2; // U
+            V              <= cr2 < 0 ? 0 : cr2 > 255 ? 255 : cr2; // V
         end
     end
 

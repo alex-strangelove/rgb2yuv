@@ -42,13 +42,13 @@ module tb_rgb2yuv;
     localparam real KCr_FLOAT_709 = 1.0/(2.0*(1.0-Kr_709));
 
     localparam CLK_PERIOD                = 10;  // 10ns
-    localparam PIPELINE_DEPTH            = 11; // 11 stages
+    localparam PIPELINE_DEPTH            = 11;
     localparam PIPELINE_LATENCY          = PIPELINE_DEPTH * CLK_PERIOD;
     localparam RANDOM_PATTERN_TEST_COUNT = 100;
 
     // Clock & reset signals
     reg clk;
-    reg reset;
+    reg areset_n;
 
     // RGB input & YUV output   
     reg  [BIT_DEPTH-1:0] R, G, B;
@@ -61,7 +61,7 @@ module tb_rgb2yuv;
         .REC_STANDARD(REC_STANDARD)
     ) dut (
         .clk(clk),
-        .areset(reset),
+        .areset_n(areset_n),
         .R(R),
         .G(G),
         .B(B),
@@ -78,9 +78,9 @@ module tb_rgb2yuv;
 
     // Reset Generation: Assert reset low for a few cycles then deassert
     initial begin
-        reset = 0;
-        #12; // hold reset low for a little over one clock cycle
-        reset = 1;
+        areset_n = 0;
+        #12; // hold areset_n low for a little over one clock cycle
+        areset_n = 1;
     end
 
   // Function to compute reference YUV values
@@ -146,7 +146,7 @@ module tb_rgb2yuv;
 
     initial begin
         // Wait for reset to be deasserted
-        @(posedge reset);
+        @(posedge areset_n);
         #10;
 
         #100; // Allow some time for the change to take effect

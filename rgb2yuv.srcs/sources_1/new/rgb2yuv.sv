@@ -66,17 +66,17 @@ module rtl_rgb2yuv #(
         int'(Kb_709 * (2**MULT_WIDTH))   // B
     };
 
-    // Pipeline registers
-    logic unsigned [Y_WIDTH+MULT_WIDTH-1:0]   y_mult_r, y_mult_g, y_mult_b;
-    logic unsigned [Y_WIDTH+MULT_WIDTH-1:0]   y_mult, u_mult, v_mult;
-    logic unsigned [Y_WIDTH-1:0]              red_r, blue_r;
+    // Stage 1 pipeline registers
+    logic unsigned [Y_WIDTH+MULT_WIDTH-1:0]   y_mult_s1, u_mult_s1, v_mult_s1;
+    logic unsigned [Y_WIDTH+MULT_WIDTH-1:0]   y_mult_s2, u_mult_s2, v_mult_s2;
+    logic unsigned [Y_WIDTH-1:0]              red_s1, blue_s1, red_s2, blue_s2;
 
-    logic unsigned [Y_WIDTH+MULT_WIDTH-1:0]   sum_rgb;
-    logic signed   [Y_WIDTH+MULT_WIDTH-1:0]   u0, v0, u1, v1;
-    logic unsigned [Y_WIDTH-1:0]              y0, y1, y2;
+    logic unsigned [Y_WIDTH+MULT_WIDTH-1:0]   sum_yuv;
+    logic signed   [Y_WIDTH+MULT_WIDTH-1:0]   u_s3, v_s3, u_s4, v_s4;
+    logic unsigned [Y_WIDTH-1:0]              y_s3, y_s4, y_s5, y_s6;
 
-    logic signed   [Y_WIDTH+2*MULT_WIDTH-1:0] cb1, cr1;
-    logic signed   [Y_WIDTH-1:0]              cb2, cr2;
+    logic signed   [Y_WIDTH+2*MULT_WIDTH-1:0] cb_s5, cr_s5;
+    logic signed   [Y_WIDTH+2*MULT_WIDTH-1:0] cb_s6, cr_s6;
 
     // Coefficient selection based on standard
     wire [BIT_DEPTH+MULT_WIDTH-1:0] coeff_y_r = REC_STANDARD ? COEFF_709_Y[0] : COEFF_601_Y[0];
@@ -86,70 +86,79 @@ module rtl_rgb2yuv #(
     // Pipeline stage 1: Multiply and Input Capture 
     always_ff @(posedge clk or negedge areset_n) begin 
         if (!areset_n) begin
-            {y_mult_r, y_mult_g, y_mult_b} <= '0;
-            {red_r, blue_r}                <= '0;
+            {y_mult_s1, u_mult_s1, v_mult_s1} <= '0;
+            {red_s1, blue_s1}                 <= '0;
         end else begin
-            y_mult_r                       <= coeff_y_r * R;
-            y_mult_g                       <= coeff_y_g * G;
-            y_mult_b                       <= coeff_y_b * B;
-            red_r                          <= R;
-            blue_r                         <= B;
+            y_mult_s1                         <= coeff_y_r * R;
+            u_mult_s1                         <= coeff_y_g * G;
+            v_mult_s1                         <= coeff_y_b * B;
+            red_s1                            <= R;
+            blue_s1                           <= B;
         end
     end
 
     // Pipeline stage 2: Latch Multiplication Results
     always_ff @(posedge clk or negedge areset_n) begin
         if (!areset_n) begin
-            {y_mult, u_mult, v_mult} <= '0;
+            {y_mult_s2, u_mult_s2, v_mult_s2} <= '0;
         end else begin
-            {y_mult, u_mult, v_mult} <= {y_mult_r, y_mult_g, y_mult_b};
+            {y_mult_s2, u_mult_s2, v_mult_s2} <= {y_mult_s1, u_mult_s1, v_mult_s1};
+            {red_s2, blue_s2}                 <= {red_s1, blue_s1};
         end
     end
 
     // Pipeline stage 3: Sum and Intermediate Calculation
     always_ff @(posedge clk or negedge areset_n) begin
         if (!areset_n) begin
-            sum_rgb         <= '0;
-            {y0, u0, v0}    <= '0;
+            sum_yuv            <= '0;
+            {y_s3, u_s3, v_s3} <= '0;
         end else begin
-            sum_rgb         <= y_mult + u_mult + v_mult;
-            y0              <= (sum_rgb + (1<<(MULT_WIDTH - 1))) >> MULT_WIDTH;
-            u0              <= (blue_r << MULT_WIDTH) - sum_rgb;
-            v0              <= (red_r << MULT_WIDTH) - sum_rgb;
+            sum_yuv            <= y_mult_s2 + u_mult_s2 + v_mult_s2;
+            y_s3               <= (sum_yuv + (1<<(MULT_WIDTH - 1))) >> MULT_WIDTH;
+            u_s3               <= (blue_s2 << MULT_WIDTH) - sum_yuv;
+            v_s3               <= (red_s2 << MULT_WIDTH) - sum_yuv;
         end
     end
 
     // Pipeline stage 4: Latch Intermediate Values
     always_ff @(posedge clk or negedge areset_n) begin
         if (!areset_n) begin
-            {y1, u1, v1} <= '0;
+            {y_s4, u_s4, v_s4} <= '0;
         end else begin
-            {y1, u1, v1} <= {y0, u0, v0};
+            {y_s4, u_s4, v_s4} <= {y_s3, u_s3, v_s3};
         end
     end
 
     // Pipeline stage 5: Final Chroma Scaling Calculation
     always_ff @(posedge clk or negedge areset_n) begin
         if (!areset_n) begin
-            {cb1, cr1, y2} <= '0;
+            {cb_s5, cr_s5, y_s5} <= '0;
         end else begin
-            cb1            <= (128 << (2*MULT_WIDTH)) + (KCb * u1);
-            cr1            <= (128 << (2*MULT_WIDTH)) + (KCr * v1);
-            
-            y2             <= y1;
-            cb2            <= (cb1 + (1<<((2*MULT_WIDTH) - 1))) >> (2*MULT_WIDTH);
-            cr2            <= (cr1 + (1<<((2*MULT_WIDTH) - 1))) >> (2*MULT_WIDTH);
+            cb_s5                <= (128 << (2*MULT_WIDTH)) + (KCb * u_s4);
+            cr_s5                <= (128 << (2*MULT_WIDTH)) + (KCr * v_s4);
+            y_s5                 <= y_s4;
         end
     end
 
-    // Pipeline stage 6: Output register
+    // Pipeline stage 6: Chroma Scaling Output
+    always_ff @(posedge clk or negedge areset_n) begin
+        if (!areset_n) begin
+            {cb_s6, cr_s6, y_s6} <= '0;
+        end else begin
+            cb_s6                <= (cb_s5 + (1<<((2*MULT_WIDTH) - 1))) >> (2*MULT_WIDTH);
+            cr_s6                <= (cr_s5 + (1<<((2*MULT_WIDTH) - 1))) >> (2*MULT_WIDTH);
+            y_s6                 <= y_s5;
+        end
+    end
+
+    // Pipeline stage 7: Output register
     always_ff @(posedge clk or negedge areset_n) begin
         if (!areset_n) begin
             {Y, U, V}      <= '0;
         end else begin
-            Y              <= y2 > 255 ? 255 : y2;                 // Y
-            U              <= cb2 < 0 ? 0 : cb2 > 255 ? 255 : cb2; // U
-            V              <= cr2 < 0 ? 0 : cr2 > 255 ? 255 : cr2; // V
+            Y              <= y_s6 > 255 ? 255 : y_s6;                   // Y
+            U              <= cb_s6 < 0 ? 0 : cb_s6 > 255 ? 255 : cb_s6; // U
+            V              <= cr_s6 < 0 ? 0 : cr_s6 > 255 ? 255 : cr_s6; // V
         end
     end
 

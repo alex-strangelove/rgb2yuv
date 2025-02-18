@@ -42,7 +42,7 @@ module tb_rgb2yuv;
     localparam real KCr_FLOAT_709 = 1.0/(2.0*(1.0-Kr_709));
 
     localparam CLK_PERIOD                = 10;  // 10ns
-    localparam PIPELINE_DEPTH            = 11;
+    localparam PIPELINE_DEPTH            = 12;
     localparam PIPELINE_LATENCY          = PIPELINE_DEPTH * CLK_PERIOD;
     localparam RANDOM_PATTERN_TEST_COUNT = 100;
 

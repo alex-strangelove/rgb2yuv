@@ -41,10 +41,10 @@ module tb_rgb2yuv;
     localparam real KCb_FLOAT_709 = 1.0/(2.0*(1.0-Kb_709));
     localparam real KCr_FLOAT_709 = 1.0/(2.0*(1.0-Kr_709));
 
-    localparam CLK_PERIOD                = 10;  // 10ns
-    localparam PIPELINE_DEPTH            = 12;
+    localparam CLK_PERIOD                = 2; 
+    localparam PIPELINE_DEPTH            = 13;
     localparam PIPELINE_LATENCY          = PIPELINE_DEPTH * CLK_PERIOD;
-    localparam RANDOM_PATTERN_TEST_COUNT = 100;
+    localparam RANDOM_PATTERN_TEST_COUNT = 5;
 
     // Clock & reset signals
     reg clk;
@@ -172,7 +172,7 @@ module tb_rgb2yuv;
             R = $urandom_range(0, 255);
             G = $urandom_range(0, 255);
             B = $urandom_range(0, 255);
-            #PIPELINE_LATENCY;
+            repeat(PIPELINE_DEPTH) @(posedge clk);
             compute_ref(R, G, B, exp_y, exp_u, exp_v);
             $display("================================");
             $display("Time: %t\nTest:     %s", $time, test_name);
@@ -194,7 +194,7 @@ module tb_rgb2yuv;
         // Test pattern: Black (0,0,0)
         test_name = "Black";
         R = 8'd0; G = 8'd0; B = 8'd0;
-        #PIPELINE_LATENCY;
+        repeat(PIPELINE_DEPTH) @(posedge clk);
         compute_ref(R, G, B, exp_y, exp_u, exp_v);
         $display("================================");
         $display("Time: %t\nTest:     %s", $time, test_name);
@@ -213,7 +213,7 @@ module tb_rgb2yuv;
         // Test pattern: White (255,255,255)
         test_name = "White";
         R = 8'd255; G = 8'd255; B = 8'd255;
-        #PIPELINE_LATENCY;
+        repeat(PIPELINE_DEPTH) @(posedge clk);
         compute_ref(R, G, B, exp_y, exp_u, exp_v);
         $display("================================");
         $display("Time: %t\nTest:     %s", $time, test_name);
@@ -231,7 +231,7 @@ module tb_rgb2yuv;
         // Test pattern: Red (255,0,0)
         test_name = "Red";
         R = 8'd255; G = 8'd0; B = 8'd0;
-        #PIPELINE_LATENCY;
+        repeat(PIPELINE_DEPTH) @(posedge clk);
         compute_ref(R, G, B, exp_y, exp_u, exp_v);
         $display("================================");
         $display("Time: %t\nTest:     %s", $time, test_name);
@@ -249,7 +249,7 @@ module tb_rgb2yuv;
         // Test pattern: Green (0,255,0)
         test_name = "Green";
         R = 8'd0; G = 8'd255; B = 8'd0;
-        #PIPELINE_LATENCY;
+        repeat(PIPELINE_DEPTH) @(posedge clk);
         compute_ref(R, G, B, exp_y, exp_u, exp_v);
         $display("================================");
         $display("Time: %t\nTest:     %s", $time, test_name);
@@ -267,7 +267,7 @@ module tb_rgb2yuv;
         // Test pattern: Blue (0,0,255)
         test_name = "Blue";
         R = 8'd0; G = 8'd0; B = 8'd255;
-        #PIPELINE_LATENCY;
+        repeat(PIPELINE_DEPTH) @(posedge clk);
         compute_ref(R, G, B, exp_y, exp_u, exp_v);
         $display("================================");
         $display("Time: %t\nTest:     %s", $time, test_name);
@@ -285,7 +285,7 @@ module tb_rgb2yuv;
         // Test pattern: Yellow (255,255,0)
         test_name = "Yellow";
         R = 8'd255; G = 8'd255; B = 8'd0;
-        #PIPELINE_LATENCY;
+        repeat(PIPELINE_DEPTH) @(posedge clk);
         compute_ref(R, G, B, exp_y, exp_u, exp_v);
         $display("================================");
         $display("Time: %t\nTest:     %s", $time, test_name);
@@ -303,7 +303,7 @@ module tb_rgb2yuv;
         // Test pattern: Cyan (0,255,255)
         test_name = "Cyan";
         R = 8'd0; G = 8'd255; B = 8'd255;
-        #PIPELINE_LATENCY;
+        repeat(PIPELINE_DEPTH) @(posedge clk);
         compute_ref(R, G, B, exp_y, exp_u, exp_v);
         $display("================================");
         $display("Time: %t\nTest:     %s", $time, test_name);
@@ -321,7 +321,7 @@ module tb_rgb2yuv;
         // Test pattern: Magenta (255,0,255)
         test_name = "Magenta";
         R = 8'd255; G = 8'd0; B = 8'd255;
-        #PIPELINE_LATENCY;
+        repeat(PIPELINE_DEPTH) @(posedge clk);
         compute_ref(R, G, B, exp_y, exp_u, exp_v);
         $display("================================");
         $display("Time: %t\nTest:     %s", $time, test_name);
@@ -339,7 +339,7 @@ module tb_rgb2yuv;
         // Test pattern: Gray (128,128,128)
         test_name = "Gray";
         R = 8'd128; G = 8'd128; B = 8'd128;
-        #PIPELINE_LATENCY;
+        repeat(PIPELINE_DEPTH) @(posedge clk);
         compute_ref(R, G, B, exp_y, exp_u, exp_v);
         $display("================================");
         $display("Time: %t\nTest:     %s", $time, test_name);

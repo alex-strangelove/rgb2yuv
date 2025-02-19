@@ -38,12 +38,12 @@ module rtl_rgb2yuv (
 - U = (B - Y) × 0.539 + 128
 - V = (R - Y) × 0.635 + 128
 
-## Implementation Details (Zync Ultrascale+)
+## Implementation Details (Zynq Ultrascale+)
 
 - 6-stage pipelined architecture for optimal performance
 - Fixed-point arithmetic for efficient hardware implementation
 - Built-in value clamping to ensure valid output range
-- WNS: 0.0ns, TNS: 0.0ns, Fmax: 468.5 MHz (2.135ns period)
+- Fmax: 500 MHz (2.0 ns period)
 
 ## Verification
 
@@ -79,5 +79,5 @@ rtl_rgb2yuv #(
 
 ## Timing Constraints
 
-- Target clock frequency: 468 MHz
+- Target clock frequency: 500 MHz
 - Clock port: E12 (LVCMOS33)

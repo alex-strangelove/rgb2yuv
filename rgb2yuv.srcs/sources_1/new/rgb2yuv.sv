@@ -73,10 +73,10 @@ module rtl_rgb2yuv #(
 
     logic unsigned [Y_WIDTH+MULT_WIDTH-1:0]   sum_yuv;
     logic signed   [Y_WIDTH+MULT_WIDTH-1:0]   u_s3, v_s3, u_s4, v_s4;
-    logic unsigned [Y_WIDTH-1:0]              y_s3, y_s4, y_s5, y_s6;
+    logic unsigned [Y_WIDTH-1:0]              y_s3, y_s4, y_s5, y_s6, y_s7;
 
-    logic signed   [Y_WIDTH+2*MULT_WIDTH-1:0] cb_s5, cr_s5;
-    logic signed   [Y_WIDTH+2*MULT_WIDTH-1:0] cb_s6, cr_s6;
+    logic signed   [Y_WIDTH+2*MULT_WIDTH-1:0] cb_mult_s5, cr_mult_s5;
+    logic signed   [Y_WIDTH+2*MULT_WIDTH-1:0] cb_s5, cr_s5, cb_s6, cr_s6, cb_s7, cr_s7;
 
     // Coefficient selection based on standard
     wire [BIT_DEPTH+MULT_WIDTH-1:0] coeff_y_r = REC_STANDARD ? COEFF_709_Y[0] : COEFF_601_Y[0];
@@ -84,7 +84,7 @@ module rtl_rgb2yuv #(
     wire [BIT_DEPTH+MULT_WIDTH-1:0] coeff_y_b = REC_STANDARD ? COEFF_709_Y[2] : COEFF_601_Y[2];
 
     // Pipeline stage 1: Multiply and Input Capture 
-    always_ff @(posedge clk or negedge areset_n) begin 
+    always_ff @(posedge clk) begin 
         if (!areset_n) begin
             {y_mult_s1, u_mult_s1, v_mult_s1} <= '0;
             {red_s1, blue_s1}                 <= '0;
@@ -98,7 +98,7 @@ module rtl_rgb2yuv #(
     end
 
     // Pipeline stage 2: Latch Multiplication Results
-    always_ff @(posedge clk or negedge areset_n) begin
+    always_ff @(posedge clk) begin
         if (!areset_n) begin
             {y_mult_s2, u_mult_s2, v_mult_s2} <= '0;
         end else begin
@@ -108,7 +108,7 @@ module rtl_rgb2yuv #(
     end
 
     // Pipeline stage 3: Sum and Intermediate Calculation
-    always_ff @(posedge clk or negedge areset_n) begin
+    always_ff @(posedge clk) begin
         if (!areset_n) begin
             sum_yuv            <= '0;
             {y_s3, u_s3, v_s3} <= '0;
@@ -121,7 +121,7 @@ module rtl_rgb2yuv #(
     end
 
     // Pipeline stage 4: Latch Intermediate Values
-    always_ff @(posedge clk or negedge areset_n) begin
+    always_ff @(posedge clk) begin
         if (!areset_n) begin
             {y_s4, u_s4, v_s4} <= '0;
         end else begin
@@ -129,36 +129,47 @@ module rtl_rgb2yuv #(
         end
     end
 
-    // Pipeline stage 5: Final Chroma Scaling Calculation
-    always_ff @(posedge clk or negedge areset_n) begin
+    // Pipeline stage 5: Chroma Scaling Calculation
+    always_ff @(posedge clk) begin
         if (!areset_n) begin
-            {cb_s5, cr_s5, y_s5} <= '0;
+            {cb_mult_s5, cr_mult_s5, y_s5} <= '0;
         end else begin
-            cb_s5                <= (128 << (2*MULT_WIDTH)) + (KCb * u_s4);
-            cr_s5                <= (128 << (2*MULT_WIDTH)) + (KCr * v_s4);
-            y_s5                 <= y_s4;
+            cb_mult_s5                     <= (KCb * u_s4);
+            cr_mult_s5                     <= (KCr * v_s4);
+            y_s5                           <= y_s4;
         end
     end
 
-    // Pipeline stage 6: Chroma Scaling Output
-    always_ff @(posedge clk or negedge areset_n) begin
+    // Pipeline stage 6: Chroma Scaling Intermediate
+    always_ff @(posedge clk) begin
         if (!areset_n) begin
             {cb_s6, cr_s6, y_s6} <= '0;
         end else begin
-            cb_s6                <= (cb_s5 + (1<<((2*MULT_WIDTH) - 1))) >> (2*MULT_WIDTH);
-            cr_s6                <= (cr_s5 + (1<<((2*MULT_WIDTH) - 1))) >> (2*MULT_WIDTH);
+            cb_s6                <= (128 << (2*MULT_WIDTH)) + cb_mult_s5;
+            cr_s6                <= (128 << (2*MULT_WIDTH)) + cr_mult_s5;
             y_s6                 <= y_s5;
         end
     end
 
-    // Pipeline stage 7: Output register
-    always_ff @(posedge clk or negedge areset_n) begin
+    // Pipeline stage 7: Chroma Scaling Output
+    always_ff @(posedge clk) begin
+        if (!areset_n) begin
+            {cb_s7, cr_s7, y_s7} <= '0;
+        end else begin
+            cb_s7                <= (cb_s6 + (1<<((2*MULT_WIDTH) - 1))) >> (2*MULT_WIDTH);
+            cr_s7                <= (cr_s6 + (1<<((2*MULT_WIDTH) - 1))) >> (2*MULT_WIDTH);
+            y_s7                 <= y_s6;
+        end
+    end
+
+    // Pipeline stage 8: Output register
+    always_ff @(posedge clk) begin
         if (!areset_n) begin
             {Y, U, V}      <= '0;
         end else begin
-            Y              <= y_s6 > 255 ? 255 : y_s6;                   // Y
-            U              <= cb_s6 < 0 ? 0 : cb_s6 > 255 ? 255 : cb_s6; // U
-            V              <= cr_s6 < 0 ? 0 : cr_s6 > 255 ? 255 : cr_s6; // V
+            Y              <= y_s7 > 255 ? 255 : y_s7;                   // Y
+            U              <= cb_s7 < 0 ? 0 : cb_s7 > 255 ? 255 : cb_s7; // U
+            V              <= cr_s7 < 0 ? 0 : cr_s7 > 255 ? 255 : cr_s7; // V
         end
     end
 
